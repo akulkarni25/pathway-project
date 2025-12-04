@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pathway — Job Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+    <div class="banner">
+        <div>
+            <h1>Job Tracker</h1>
+            <p>Convert saved roles into a pipeline, update statuses, and keep notes on interviews or follow-ups.</p>
+        </div>
+        <div class="header-links">
+            <a href="/dashboard.html">Home</a>
+            <a href="/jobs.html">Job Recommendations</a>
+            <a href="/scheduler.html">Scheduler</a>
+            <a href="/resume.html">Resume Reformatter</a>
+        </div>
+    </div>
+
+    <section class="tracker-grid">
+        <div class="card tracker-stats">
+            <h2>Pipeline Snapshot</h2>
+            <div class="stats-row">
+                <div class="stat-pill">
+                    <p>Total</p>
+                    <strong data-stat="total">0</strong>
+                </div>
+                <div class="stat-pill">
+                    <p>Saved</p>
+                    <strong data-stat="saved">0</strong>
+                </div>
+                <div class="stat-pill">
+                    <p>Applied</p>
+                    <strong data-stat="applied">0</strong>
+                </div>
+                <div class="stat-pill">
+                    <p>Interviews</p>
+                    <strong data-stat="interview">0</strong>
+                </div>
+                <div class="stat-pill">
+                    <p>Offers</p>
+                    <strong data-stat="offer">0</strong>
+                </div>
+                <div class="stat-pill">
+                    <p>Rejected</p>
+                    <strong data-stat="rejected">0</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="card tracker-form">
+            <h2>Add Job Manually</h2>
+            <form id="trackerForm">
+                <div class="form-row">
+                    <label for="jobTitle">Role</label>
+                    <input id="jobTitle" name="jobTitle" required placeholder="e.g., Frontend Engineer">
+                </div>
+                <div class="form-row">
+                    <label for="jobCompany">Company</label>
+                    <input id="jobCompany" name="jobCompany" placeholder="Company name">
+                </div>
+                <div class="form-row">
+                    <label for="jobLocation">Location</label>
+                    <input id="jobLocation" name="jobLocation" placeholder="Remote / Atlanta, GA">
+                </div>
+                <div class="form-row">
+                    <label for="jobLink">Application Link</label>
+                    <input id="jobLink" name="jobLink" placeholder="https://careers...">
+                </div>
+                <div class="grid-two">
+                    <div class="form-row">
+                        <label for="jobStatus">Status</label>
+                        <select id="jobStatus" name="jobStatus">
+                            <option value="saved">Saved</option>
+                            <option value="applied">Applied</option>
+                            <option value="interview">Interview</option>
+                            <option value="offer">Offer</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label for="jobNextStep">Next step date</label>
+                        <input id="jobNextStep" name="jobNextStep" type="date">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label for="jobNotes">Notes</label>
+                    <textarea id="jobNotes" name="jobNotes" rows="3" placeholder="Interviewers, follow-ups, salary expectations..."></textarea>
+                </div>
+                <button type="submit">Add to tracker</button>
+                <p id="trackerFormMessage" class="muted" style="margin-top:8px;"></p>
+            </form>
+        </div>
+    </section>
+
+    <section class="card tracker-pending" id="pendingQueueSection">
+        <div class="section-header">
+            <h2>Waiting to log</h2>
+            <p class="muted">These come from the job recommendation page when you click “View / Apply”.</p>
+        </div>
+        <div id="pendingQueue" class="pending-list"></div>
+    </section>
+
+    <section class="card tracker-board">
+        <div class="section-header">
+            <h2>Applications</h2>
+            <p class="muted">Update statuses, schedule next steps, or keep notes for each role.</p>
+        </div>
+        <div id="trackerEmpty" class="muted">You have no tracked roles yet. Log one from Job Recommendations or use the form above.</div>
+        <div id="trackerList" class="tracker-list"></div>
+    </section>
+</div>
+
+<script src="app.js"></script>
+<script src="../tracker.js"></script>
+</body>
+</html>

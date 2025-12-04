@@ -8,12 +8,15 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
     "bcryptjs": "^2.4.3",
+    "docx": "^9.5.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "express-session": "^1.18.0",
+    "mammoth": "^1.11.0",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
-    "openai": "^6.9.1"
+    "openai": "^6.9.1",
+    "pdf-parse": "^1.1.4"
   }
 }

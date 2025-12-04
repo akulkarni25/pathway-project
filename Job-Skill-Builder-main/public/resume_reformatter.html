@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Resume AI – Pathway</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+        .shell {
+          max-width: 960px;
+          margin: 24px auto;
+          padding: 0 16px 24px;
+        }
+
+        .nav-back {
+          margin: 12px 0 16px;
+        }
+
+        .nav-back a {
+          color: #2563eb;
+          text-decoration: none;
+          font-size: 0.9rem;
+        }
+
+        .nav-back a:hover {
+          text-decoration: underline;
+        }
+
+        .card {
+          background: #ffffff;
+          border-radius: 18px;
+          box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+          padding: 20px 22px;
+        }
+
+        h1 {
+          margin-top: 0;
+          font-size: 1.6rem;
+          color: #111827;
+        }
+
+        p.lead {
+          margin: 4px 0 10px;
+          color: #4b5563;
+          font-size: 0.95rem;
+        }
+
+        .field {
+          margin-top: 14px;
+        }
+
+        .field label {
+          display: block;
+          font-weight: 700;
+          margin-bottom: 4px;
+          font-size: 0.98rem;
+          color: #111827;
+        }
+
+        .field textarea,
+        .field input,
+        .field select {
+          width: 100%;
+          box-sizing: border-box;
+          border-radius: 10px;
+          border: 1px solid #d1d5db;
+          padding: 8px 10px;
+          font-size: 0.95rem;
+          resize: vertical;
+        }
+
+        .field small {
+          color: #6b7280;
+          font-size: 0.8rem;
+        }
+
+        .controls {
+          margin-top: 18px;
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+
+        .btn {
+          border-radius: 999px;
+          border: none;
+          padding: 8px 18px;
+          cursor: pointer;
+          font-size: 0.95rem;
+        }
+
+        .btn-primary {
+          background: #2563eb;
+          color: #ffffff;
+        }
+
+        .btn-primary:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        .btn-secondary {
+          background: #e5e7eb;
+          color: #111827;
+        }
+
+        .status {
+          font-size: 0.85rem;
+          color: #6b7280;
+          margin-top: 8px;
+        }
+
+        .status.error {
+          color: #b91c1c;
+        }
+
+        .status.success {
+          color: #166534;
+        }
+
+        .existing-resume {
+          margin-top: 8px;
+          font-size: 0.85rem;
+          color: #4b5563;
+        }
+
+        .existing-resume a {
+          color: #2563eb;
+          text-decoration: underline;
+        }
+
+        .results {
+          margin-top: 24px;
+        }
+
+        .results h2 {
+          font-size: 1.15rem;
+          margin-bottom: 6px;
+          color: #111827;
+        }
+
+        .results textarea {
+          width: 100%;
+          min-height: 260px;
+          border-radius: 12px;
+          border: 1px solid #d1d5db;
+          padding: 10px 12px;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+            sans-serif;
+          font-size: 0.9rem;
+          box-sizing: border-box;
+          white-space: pre-wrap;
+        }
+
+        .disabled-note {
+          margin-top: 10px;
+          font-size: 0.9rem;
+          color: #b91c1c;
+        }
+    </style>
+</head>
+<body>
+<header class="top-bar top-bar--app">
+    <div class="top-left">
+        <div class="logo">Pathway</div>
+        <nav class="top-nav">
+            <a href="/dashboard" class="top-link">Dashboard</a>
+            <a href="/resume_upload" class="top-link">Resume Uploader</a>
+            <a href="/resume_reformatter" class="top-link active">Resume AI</a>
+            <a href="/jobs" class="top-link">Jobs</a>
+            <a href="/elevator" class="top-link">Elevator Coach</a>
+            <a href="/scheduler" class="top-link">Scheduler</a>
+            <a href="/skills" class="top-link">Skills Coach</a>
+        </nav>
+    </div>
+</header>
+
+<div class="shell">
+    <div class="nav-back">
+        <a href="/dashboard">&#8592; Back to dashboard</a>
+    </div>
+
+    <div class="card">
+        <h1>Resume AI Reformatter</h1>
+        <p class="lead">
+            We’ll take your most recently uploaded resume and reshape it for a specific job.
+        </p>
+
+        <p id="existingResumeInfo" class="existing-resume" style="display:none;">
+            Using your latest uploaded resume:
+            <a id="existingResumeLink" href="#" target="_blank">View resume</a>
+        </p>
+
+        <p id="noResumeInfo" class="disabled-note" style="display:none;">
+            We couldn't find a resume for your account. Please upload one first in the
+            <a href="/resume_upload">Resume Uploader</a> tab.
+        </p>
+
+        <form id="reformatterForm">
+            <div class="field">
+                <label for="jobDescription">Target job description*</label>
+                <textarea
+                        id="jobDescription"
+                        rows="6"
+                        placeholder="Paste the full job description here so we can target keywords, responsibilities, and required skills."
+                ></textarea>
+            </div>
+
+            <div class="field">
+                <label for="preferences">How would you like your resume changed? (optional)</label>
+                <textarea
+                        id="preferences"
+                        rows="4"
+                        placeholder="Examples: Emphasize my data science projects; shorten older experience; highlight leadership and impact; keep formatting but make bullets more action-driven."
+                ></textarea>
+            </div>
+
+            <div class="field">
+                <label for="toneSelect">Tone / emphasis (optional)</label>
+                <select id="toneSelect">
+                    <option value="">Keep my current tone</option>
+                    <option value="concise">More concise, focused</option>
+                    <option value="impactful">More impact and achievements</option>
+                    <option value="technical">More technical depth</option>
+                    <option value="managerial">More leadership / managerial</option>
+                </select>
+            </div>
+
+            <div class="controls">
+                <button type="button" class="btn btn-secondary" id="clearBtn">
+                    Clear
+                </button>
+                <button type="submit" class="btn btn-primary" id="generateBtn">
+                    Generate tailored resume
+                </button>
+            </div>
+
+            <div class="status" id="statusMessage"></div>
+        </form>
+
+        <div class="results" id="results" style="display:none;">
+            <h2>Tailored Resume (preview)</h2>
+            <textarea id="tailoredResumeOutput" readonly></textarea>
+
+            <div
+                    id="downloadTailoredRow"
+                    style="margin-top:16px; display:none; align-items:center; gap:10px;"
+            >
+                <span style="font-size:0.9rem; color:#4b5563;">Download as .docx:</span>
+                <a
+                        id="downloadTailoredLink"
+                        class="resume-download-link"
+                        href="#"
+                        target="_blank"
+                        download
+                >
+                    Download tailored .docx
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const form = document.getElementById("reformatterForm");
+      const generateBtn = document.getElementById("generateBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const statusMessage = document.getElementById("statusMessage");
+      const resultsDiv = document.getElementById("results");
+      const tailoredOutput = document.getElementById("tailoredResumeOutput");
+      const downloadTailoredRow = document.getElementById("downloadTailoredRow");
+      const downloadTailoredLink = document.getElementById("downloadTailoredLink");
+
+      const existingResumeInfo = document.getElementById("existingResumeInfo");
+      const existingResumeLink = document.getElementById("existingResumeLink");
+      const noResumeInfo = document.getElementById("noResumeInfo");
+
+      const jobDescriptionInput = document.getElementById("jobDescription");
+      const preferencesInput = document.getElementById("preferences");
+      const toneSelect = document.getElementById("toneSelect");
+
+      function setStatus(msg, type) {
+        statusMessage.textContent = msg || "";
+        statusMessage.classList.remove("error", "success");
+        if (type === "error") statusMessage.classList.add("error");
+        if (type === "success") statusMessage.classList.add("success");
+      }
+
+      function clearForm() {
+        jobDescriptionInput.value = "";
+        preferencesInput.value = "";
+        toneSelect.value = "";
+        tailoredOutput.value = "";
+        resultsDiv.style.display = "none";
+        downloadTailoredRow.style.display = "none";
+        setStatus("");
+      }
+
+      clearBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        clearForm();
+      });
+
+      // 1) Check if user has an uploaded resume
+      try {
+        const meRes = await fetch("/api/me", { credentials: "include" });
+        const meData = await meRes.json();
+        console.log("[reformatter] /api/me:", meData);
+
+        if (!meData.success) {
+          window.location.href = "/login.html";
+          return;
+        }
+
+        const user = meData.user;
+        if (user.resume_url) {
+          existingResumeLink.href = user.resume_url;
+          existingResumeInfo.style.display = "block";
+        } else {
+          // No resume on file – disable form
+          noResumeInfo.style.display = "block";
+          generateBtn.disabled = true;
+          setStatus(
+            "No resume found for your account. Please upload a resume first.",
+            "error"
+          );
+        }
+      } catch (err) {
+        console.error("[reformatter] Error loading /api/me:", err);
+        setStatus("Error loading your account. Please refresh or log in again.", "error");
+      }
+
+      // 2) Handle form submit
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const jobDescription = jobDescriptionInput.value.trim();
+        const preferences = preferencesInput.value.trim();
+        const tone = toneSelect.value;
+
+        if (!jobDescription) {
+          setStatus("Please paste the target job description first.", "error");
+          return;
+        }
+
+        generateBtn.disabled = true;
+        clearBtn.disabled = true;
+        setStatus("Reformatting your resume with AI...", "");
+        resultsDiv.style.display = "none";
+
+        try {
+          const res = await fetch("/api/resume/reformatter", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({ jobDescription, preferences, tone }),
+          });
+
+          const raw = await res.text();
+          console.log("[reformatter] HTTP status:", res.status, "ok:", res.ok);
+          console.log("[reformatter] Raw response:", raw);
+
+          let data = {};
+          try {
+            data = raw ? JSON.parse(raw) : {};
+          } catch (parseErr) {
+            console.error("[reformatter] JSON parse error:", parseErr);
+            setStatus("Server returned invalid JSON.", "error");
+            return;
+          }
+
+          console.log("[reformatter] Parsed data:", data);
+
+          if (!res.ok || !data.success) {
+            setStatus(
+              data.message ||
+                "Something went wrong while generating your tailored resume.",
+              "error"
+            );
+            downloadTailoredRow.style.display = "none";
+            return;
+          }
+
+          tailoredOutput.value = data.tailoredResume || "";
+          resultsDiv.style.display = "block";
+          if (data.downloadUrl) {
+            downloadTailoredLink.href = data.downloadUrl;
+            downloadTailoredRow.style.display = "flex";
+          } else {
+            downloadTailoredRow.style.display = "none";
+          }
+
+          setStatus("Tailored resume generated. Review and edit as needed.", "success");
+        } catch (err) {
+          console.error("[reformatter] Fetch/network error:", err);
+          setStatus(
+            "Network error while generating resume: " +
+              (err.message || "Unknown error"),
+            "error"
+          );
+        } finally {
+          generateBtn.disabled = false;
+          clearBtn.disabled = false;
+        }
+      });
+    });
+</script>
+</body>
+</html>

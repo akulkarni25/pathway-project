@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Upload Resume Skills | Pathway</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+        body {
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          margin: 0;
+          padding: 0;
+          background: #f3f4f6;
+          color: #111827;
+        }
+
+        .shell {
+          max-width: 900px;
+          margin: 24px auto;
+          padding: 16px;
+        }
+
+        .nav-back {
+          margin-bottom: 12px;
+        }
+
+        .nav-back a {
+          text-decoration: none;
+          color: #2563eb;
+          font-size: 0.9rem;
+        }
+
+        .card {
+          background: white;
+          border-radius: 18px;
+          box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+          padding: 20px;
+        }
+
+        h1 {
+          margin-top: 0;
+          font-size: 1.6rem;
+        }
+
+        p {
+          margin-top: 4px;
+          color: #4b5563;
+        }
+
+        .field {
+          margin-top: 16px;
+        }
+
+        .field label {
+          display: block;
+          font-weight: 600;
+          margin-bottom: 4px;
+          font-size: 0.95rem;
+        }
+
+        .field input[type="file"] {
+          display: block;
+          margin-top: 4px;
+        }
+
+        .hint {
+          font-size: 0.8rem;
+          color: #6b7280;
+          margin-top: 4px;
+        }
+
+        .controls {
+          margin-top: 18px;
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+
+        .btn {
+          border-radius: 999px;
+          border: none;
+          padding: 8px 18px;
+          cursor: pointer;
+          font-size: 0.95rem;
+        }
+
+        .btn-primary {
+          background: #2563eb;
+          color: white;
+        }
+
+        .btn-primary:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        .status {
+          font-size: 0.9rem;
+          color: #6b7280;
+          margin-top: 10px;
+        }
+
+        .skills-list {
+          margin-top: 20px;
+        }
+
+        .skills-list h2 {
+          font-size: 1.2rem;
+          margin-bottom: 8px;
+        }
+
+        .skill-pill {
+          display: inline-block;
+          background: #e5e7eb;
+          border-radius: 999px;
+          padding: 4px 10px;
+          margin: 4px 6px 0 0;
+          font-size: 0.85rem;
+          color: #111827;
+        }
+
+        .resume-download-box {
+          margin: 20px 0;
+          display: none;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .resume-download-label {
+          font-size: 0.95rem;
+          color: #4b5563;
+        }
+
+        .resume-download-link {
+          display: inline-block;
+          padding: 10px 20px;
+          border-radius: 999px;
+          background: #2563eb;
+          color: #ffffff;
+          font-weight: 600;
+          font-size: 0.95rem;
+          text-decoration: none;
+        }
+
+        .resume-download-link:hover {
+          background: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <div class="nav-back">
+        <a href="/dashboard">&#8592; Back to dashboard</a>
+    </div>
+
+    <div class="card">
+        <h1>Extract Resume Skills</h1>
+        <p>
+            Upload your resume (PDF or DOCX). We’ll extract key skills (short phrases)
+            and save them to your profile.
+        </p>
+
+        <form id="resumeSkillsForm">
+            <div class="field">
+                <label for="resumeFile">Resume file (PDF or DOCX)*</label>
+                <input
+                        id="resumeFile"
+                        name="resume"
+                        type="file"
+                        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        required
+                />
+                <div class="hint">
+                    Max 1 file. Other formats are not supported.
+                </div>
+            </div>
+
+            <div class="controls">
+                <button type="submit" class="btn btn-primary" id="uploadBtn">
+                    Upload & Extract Skills
+                </button>
+            </div>
+        </form>
+
+        <div id="resumeDownloadBox" class="resume-download-box" style="display:none;">
+            <span class="resume-download-label">Latest uploaded resume:</span>
+            <a
+                    id="resumeDownloadLink"
+                    class="resume-download-link"
+                    href="#"
+                    target="_blank"
+            >
+                Download
+            </a>
+        </div>
+
+        <div class="status" id="statusText"></div>
+
+        <div class="skills-list" id="skillsContainer" style="display:none;">
+            <h2>Extracted Skills</h2>
+            <div id="skillsPills"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById("resumeSkillsForm");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const statusText = document.getElementById("statusText");
+    const skillsContainer = document.getElementById("skillsContainer");
+    const skillsPills = document.getElementById("skillsPills");
+
+    function setStatus(msg) {
+      statusText.textContent = msg || "";
+    }
+
+    function renderSkills(skills) {
+      skillsPills.innerHTML = "";
+      if (!skills || !skills.length) {
+        skillsPills.textContent = "No skills were extracted.";
+        return;
+      }
+      skills.forEach((skill) => {
+        const span = document.createElement("span");
+        span.className = "skill-pill";
+        span.textContent = skill;
+        skillsPills.appendChild(span);
+      });
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const fileInput = document.getElementById("resumeFile");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        setStatus("Please choose a resume file first.");
+        return;
+      }
+
+      const allowedTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+      const ext = file.name.toLowerCase().split(".").pop();
+
+      if (!allowedTypes.includes(file.type) && !["pdf", "docx"].includes(ext)) {
+        setStatus("File must be a PDF or DOCX.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("resume", file);
+
+      uploadBtn.disabled = true;
+      setStatus("Uploading and analyzing your resume. This may take a few seconds...");
+      skillsContainer.style.display = "none";
+
+      try {
+        const res = await fetch("/api/resume_upload", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        console.log("[resume_upload] HTTP status:", res.status, "ok:", res.ok);
+        const raw = await res.text();
+        console.log("[resume_upload] Raw response text:", raw);
+
+        let data = {};
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch (parseErr) {
+          console.error("[resume_upload] JSON parse error:", parseErr);
+          setStatus("Server returned invalid JSON.");
+          return;
+        }
+
+        console.log("[resume_upload] Parsed data:", data);
+
+        if (!res.ok || !data.success) {
+          setStatus(data.message || "Something went wrong while extracting skills.");
+          return;
+        }
+
+        setStatus(data.message || "Skills extracted and saved to your profile.");
+        renderSkills(data.skills || []);
+        skillsContainer.style.display = "block";
+      } catch (err) {
+        console.error("[resume_upload] Fetch/network error:", err);
+        setStatus("Network error while uploading resume: " + (err.message || "Unknown error"));
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+</script>
+<script src="resume_upload.js"></script>
+</body>
+</html>

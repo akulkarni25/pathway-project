@@ -15,11 +15,13 @@
         <!-- TOP NAV -->
         <nav class="top-nav">
             <a href="/dashboard" class="top-link active">Dashboard</a>
+            <a href="/resume_upload" class="top-link">Resume Uploader</a>
+            <a href="/resume_reformatter" class="top-link">Resume AI</a>
             <a href="/jobs" class="top-link">Jobs</a>
             <a href="/elevator" class="top-link">Elevator Coach</a>
             <a href="/scheduler" class="top-link">Scheduler</a>
-            <a href="/resume" class="top-link">Resume AI</a>
             <a href="/skills" class="top-link">Skills Coach</a>
+            <a href="/networking.html" class="top-link">Find Networking Events</a>
         </nav>
     </div>
 
@@ -58,7 +60,6 @@
             <nav class="sidebar-nav">
                 <button class="sidebar-tab active" data-tab="overview">Overview</button>
                 <button class="sidebar-tab" data-tab="personal">Personal Info</button>
-                <button class="sidebar-tab" data-tab="resume">Resume</button>
                 <button class="sidebar-tab" data-tab="photo">Profile Photo</button>
                 <button class="sidebar-tab" data-tab="account">Account</button>
             </nav>
@@ -68,11 +69,10 @@
             <p class="sidebar-label">Quick actions</p>
 
             <div class="quick-actions">
-                <button class="qa-btn" data-tab-jump="resume">Upload a resume</button>
+                <a href="/resume_upload" class="qa-btn qa-btn-link">Resume access/uploader</a>
 
-                <a href="/resume" class="qa-btn qa-btn-link">Open resume reformatter</a>
+                <a href="/resume_reformatter" class="qa-btn qa-btn-link">Open resume reformatter</a>
 
-                <!-- NEW SKILLS COACH QUICK LINK -->
                 <a href="/skills" class="qa-btn qa-btn-link">Open skills coach</a>
 
                 <button class="qa-btn" data-tab-jump="photo">Update profile photo</button>
@@ -229,35 +229,6 @@
             </div>
         </div>
 
-        <!-- RESUME TAB -->
-        <div class="tab-panel" id="tab-resume">
-
-            <div class="card">
-                <h3>Resume upload</h3>
-
-                <form id="resumeForm" class="inline-form" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <label>Choose a file</label>
-                        <input id="resumeFile" name="resume" type="file" accept=".pdf,.doc,.docx">
-                    </div>
-
-                    <button type="submit" class="btn-primary">Upload resume</button>
-                </form>
-
-                <div id="resumeStatus" class="muted small" style="margin-top:0.75rem;"></div>
-            </div>
-
-            <div class="card">
-                <h3>Resume tips</h3>
-                <ul class="tips-list">
-                    <li>1–2 pages max</li>
-                    <li>Clear headings</li>
-                    <li>Use measurable results</li>
-                    <li>Tailor to each job (use Resume AI tool)</li>
-                </ul>
-            </div>
-        </div>
-
         <!-- PHOTO TAB -->
         <div class="tab-panel" id="tab-photo">
             <div class="card">
@@ -389,6 +360,17 @@
             const data = await res.json();
             if (!data.success) return (window.location.href = "/login.html");
             user = data.user;
+            const statResume = document.getElementById("statResume");
+
+            if (user.resume_url) {
+              statResume.innerHTML = `<a href="${user.resume_url}"
+                                         target="_blank"
+                                         style="color:#2563eb; text-decoration:underline;">
+                                        Download
+                                      </a>`;
+            } else {
+              statResume.textContent = "Not uploaded";
+            }
         } catch {
             return (window.location.href = "/login.html");
         }
@@ -460,50 +442,6 @@
 
         document.getElementById("completionFill").style.width = percent + "%";
         document.getElementById("completionPercent").textContent = percent + "%";
-
-        // Resume upload
-        const resumeForm = document.getElementById("resumeForm");
-        const resumeStatus = document.getElementById("resumeStatus");
-
-        resumeForm.addEventListener("submit", async e => {
-            e.preventDefault();
-            const file = document.getElementById("resumeFile").files[0];
-
-            if (!file) return (resumeStatus.textContent = "Choose a file first.");
-
-            const formData = new FormData();
-            formData.append("resume", file);
-
-            const res = await fetch("/upload-resume", { method: "POST", body: formData });
-            const data = await res.json();
-
-            resumeStatus.textContent = data.success
-                ? "Uploaded: " + (data.filename || "file")
-                : data.message;
-        });
-
-        // Profile picture upload
-        const picForm = document.getElementById("profilePicForm");
-        const picStatus = document.getElementById("profilePicStatus");
-
-        picForm.addEventListener("submit", async e => {
-            e.preventDefault();
-            const file = document.getElementById("profilePicInput").files[0];
-            if (!file) return (picStatus.textContent = "Choose an image first.");
-
-            const formData = new FormData();
-            formData.append("profilePic", file);
-
-            const res = await fetch("/upload-profile-pic", { method: "POST", body: formData });
-            const data = await res.json();
-
-            picStatus.textContent = data.message;
-
-            if (data.success && data.path) {
-                document.getElementById("sidebarProfileImg").src = data.path;
-                document.getElementById("profilePhotoPreview").src = data.path;
-            }
-        });
 
     });
 </script>

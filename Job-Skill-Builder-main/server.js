@@ -8,9 +8,15 @@ const { createClient } = require("@supabase/supabase-js");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const OpenAI = require("openai");
 
 const schedulerRoutes = require("./schedulerRoutes");
 const elevatorRoutes = require("./elevatorRoutes");
+const codingCoachRoutes = require("./codingCoachRoutes");
+const resumeUploadRoutes = require("./resumeUploadRoutes");
+const resumeReformatterRoutes = require("./resumeReformatterRoutes");
+
+const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 const app = express();
 
@@ -76,6 +82,9 @@ function requireAuth(req, res, next) {
 // ---------- API ROUTES (scheduler + elevator) ----------
 app.use("/api", schedulerRoutes);
 app.use("/api", elevatorRoutes);
+app.use("/api", codingCoachRoutes);
+app.use("/api", resumeUploadRoutes);
+app.use("/api", resumeReformatterRoutes);
 
 // ---------- BASIC PAGES ----------
 app.get("/", (req, res) => {
@@ -125,14 +134,17 @@ app.get("/scheduler", requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "public", "scheduler.html"));
 });
 
-// New AI Resume page
+// Resume upload page
+app.get("/resume_upload", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "resume_upload.html"));
+});
+// AI Resume page
 app.get("/resume", requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "public", "resume.html"));
-    // Skills Coach page
-    app.get("/skills", requireAuth, (req, res) => {
-        res.sendFile(path.join(__dirname, "public", "skills.html"));
-    });
-
+});
+// Skills Coach page
+app.get("/skills", requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "skills.html"));
 });
 
 // ---------- API: CURRENT USER (NO requireAuth HERE) ----------
@@ -150,7 +162,7 @@ app.get("/api/me", async (req, res) => {
         const { data, error } = await supabase
             .from("users")
             .select(
-                "id, firstname, lastname, fullname, birthday, email, occupation, street, city, state, zip, college, certificate, graddate, profilepicpath, created_at"
+                "id, firstname, lastname, fullname, birthday, email, occupation, street, city, state, zip, college, certificate, graddate, resume_url, created_at"
             )
             .eq("id", userId)
             .maybeSingle();
@@ -357,7 +369,6 @@ app.post("/upload-resume", requireAuth, upload.single("resume"), (req, res) => {
             });
         }
 
-        // (Optional) You could store resume file info in DB later
         return res.json({
             success: true,
             message: "Resume uploaded.",
@@ -372,112 +383,115 @@ app.post("/upload-resume", requireAuth, upload.single("resume"), (req, res) => {
     }
 });
 
-// Profile picture upload from dashboard "Profile Photo" tab
-app.post(
-    "/upload-profile-pic",
-    requireAuth,
-    upload.single("profilePic"),
-    async (req, res) => {
-        try {
-            if (!req.file) {
-                return res.json({
-                    success: false,
-                    message: "No image uploaded.",
-                });
-            }
-
-            const userId = req.session.user.id;
-            const relativePath = `/uploads/${path.basename(req.file.path)}`;
-
-            const { error } = await supabase
-                .from("users")
-                .update({ profilepicpath: relativePath })
-                .eq("id", userId);
-
-            if (error) {
-                console.error("Supabase profile pic update error:", error);
-                return res.json({
-                    success: false,
-                    message: "Could not save image path to database.",
-                });
-            }
-
-            return res.json({
-                success: true,
-                message: "Profile photo updated.",
-                path: relativePath,
-            });
-        } catch (err) {
-            console.error("/upload-profile-pic error:", err);
-            return res.json({
-                success: false,
-                message: "Server error. Try again.",
-            });
-        }
-    }
-);
-
-// ---------- AI RESUME TOOL ENDPOINTS ----------
-
-// Upload + extract stub: used by resume.js (/api/upload)
-app.post("/api/upload", requireAuth, upload.single("resume"), (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({
-                message: "No resume file uploaded.",
-            });
-        }
-
-        // In a real version you'd parse the PDF/DOCX here.
-        // For now we just send a stub message back.
-        return res.json({
-            message: "Resume uploaded. Paste or edit the text in the box.",
-            resumeText: "",
-            skills: [],
-        });
-    } catch (err) {
-        console.error("/api/upload error:", err);
-        return res.status(500).json({
-            message: "Server error while processing resume.",
-        });
-    }
+app.get("/resume_reformatter", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "resume_reformatter.html"));
 });
 
-// AI resume reformatter stub: used by resume.js (/api/resume/reformatter)
-app.post("/api/resume/reformatter", requireAuth, async (req, res) => {
-    try {
-        const { resumeText, jobDescription } = req.body || {};
+// --------- API: NETWORKING (Ticketmaster Discovery) ----------
+const TM_API_KEY = process.env.TICKETMASTER_API_KEY;
 
-        if (!resumeText || !jobDescription) {
-            return res.status(400).json({
-                message: "Please provide both resume text and job description.",
-            });
+function haversineMiles(lat1, lon1, lat2, lon2) {
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const R = 3958.8; // miles
+
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+app.get("/api/networking-events", async (req, res) => {
+    if (!TM_API_KEY) {
+        return res
+            .status(500)
+            .json({ error: "TICKETMASTER_API_KEY is not set on the server" });
+    }
+
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    const maxDistance = parseInt(req.query.maxDistance || "25", 10);   // miles
+    const maxDaysAhead = parseInt(req.query.maxDaysAhead || "7", 10);  // days
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+        return res
+            .status(400)
+            .json({ error: "lat and lng query params are required" });
+    }
+
+    const now = new Date();
+    const end = new Date(now.getTime() + maxDaysAhead * 86400000);
+
+    function toTicketmasterDate(date) {
+        return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+
+    const startIso = toTicketmasterDate(now);
+    const endIso = toTicketmasterDate(end);
+
+
+    const params = new URLSearchParams({
+        apikey: TM_API_KEY,
+        latlong: `${lat},${lng}`,
+        radius: String(maxDistance),
+        unit: "miles",
+        sort: "date,asc",
+        startDateTime: startIso,
+        endDateTime: endIso,
+        size: "50",
+
+        // Networking-specific filters
+        keyword: "",
+    });
+
+    const url = `https://app.ticketmaster.com/discovery/v2/events.json?${params.toString()}`;
+
+    try {
+        const resp = await fetch(url);
+        const text = await resp.text();
+
+        if (!resp.ok) {
+            console.error("Ticketmaster API error:", resp.status, text);
+            return res
+                .status(500)
+                .json({ error: "Ticketmaster API error", status: resp.status });
         }
 
-        // Simple stub "AI" logic for now
-        const summary = `Tailored for this role, highlighting your key experience and skills mentioned in the job description.`;
-        const tailoredResume =
-            resumeText +
-            "\n\n---\nTailored for job description above. Make sure to double-check bullet points and dates.";
+        const json = JSON.parse(text);
+        const eventsRaw = json._embedded?.events || [];
 
-        const emphasizedSkills = [];
-        const suggestions = [
-            "Move the most relevant experience to the top.",
-            "Add 2–3 bullets that mention technologies from the job posting.",
-            "Keep everything to 1–2 pages and use consistent bullet formatting.",
-        ];
+        const events = eventsRaw.map((ev) => {
+            const venue = ev._embedded?.venues?.[0];
 
-        return res.json({
-            summary,
-            tailoredResume,
-            emphasizedSkills,
-            suggestions,
+            return {
+                id: ev.id,
+                title: ev.name,
+                description: ev.info || ev.pleaseNote || "",
+                startDate:
+                    ev.dates?.start?.dateTime || ev.dates?.start?.localDate,
+                locationName: venue?.name || "",
+                address: [
+                    venue?.address?.line1,
+                    venue?.city?.name,
+                    venue?.state?.stateCode,
+                    venue?.postalCode,
+                ]
+                    .filter(Boolean)
+                    .join(", "),
+                distanceMiles:
+                    typeof ev.distance === "number" ? ev.distance : null,
+                url: ev.url,
+            };
         });
+
+        res.json(events);
     } catch (err) {
-        console.error("/api/resume/reformatter error:", err);
-        return res.status(500).json({
-            message: "Server error while tailoring resume.",
-        });
+        console.error("Error contacting Ticketmaster:", err);
+        res.status(500).json({ error: "Failed to fetch events" });
     }
 });
 
