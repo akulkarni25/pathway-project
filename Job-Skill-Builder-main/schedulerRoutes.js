@@ -1,66 +1,190 @@
-// schedulerRoutes.js
 const express = require("express");
 const nodemailer = require("nodemailer");
 const cron = require("node-cron");
-const fs = require("fs");
-const path = require("path");
+const { createClient } = require("@supabase/supabase-js");
 
 const router = express.Router();
 
-/** -------- Paths for data files -------- **/
-const usersFilePath = path.join(__dirname, "users.json");
-const eventsFilePath = path.join(__dirname, "events.json");
+/** -------- Supabase Client -------- **/
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey =
+    process.env.SUPABASE_KEY;
 
-/** -------- Helpers for reading/writing JSON -------- **/
-function readJsonFile(filePath, fallback) {
+if (!supabaseUrl || !supabaseKey) {
+    console.error(
+        "Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY."
+    );
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+/** -------- Helpers: DB <-> API mapping -------- **/
+
+function mapDbEventToApi(ev) {
+    if (!ev) return null;
+    return {
+        id: ev.id,
+        name: ev.name,
+        startTime: ev.start_time || ev.startTime,
+        notify: ev.notify,
+        notes: ev.notes,
+        userEmail: ev.user_email || ev.userEmail,
+        notifiedOneDay:
+            typeof ev.notified_one_day === "boolean"
+                ? ev.notified_one_day
+                : ev.notifiedOneDay || false,
+        notifiedOneHour:
+            typeof ev.notified_one_hour === "boolean"
+                ? ev.notified_one_hour
+                : ev.notifiedOneHour || false,
+    };
+}
+
+/** -------- USER EMAIL -------- **/
+async function getCurrentUserEmail() {
     try {
-        if (!fs.existsSync(filePath)) {
-            return fallback;
+        const { data, error } = await supabase
+            .from("users")
+            .select("email")
+            .not("email", "is", null)
+            .limit(1);
+
+        if (error) {
+            console.error("Error querying Supabase users table:", error.message);
+            return null;
         }
-        const raw = fs.readFileSync(filePath, "utf8");
-        if (!raw.trim()) return fallback;
-        return JSON.parse(raw);
+
+        if (!data || data.length === 0) {
+            return null;
+        }
+
+        const row = data[0];
+        if (row && typeof row.email === "string" && row.email.trim() !== "") {
+            return row.email.trim();
+        }
+
+        return null;
     } catch (err) {
-        console.error(`Error reading JSON from ${filePath}:`, err.message);
-        return fallback;
+        console.error("getCurrentUserEmail error:", err.message);
+        return null;
     }
 }
 
-function writeJsonFile(filePath, data) {
+/** -------- EVENT STORAGE -------- **/
+
+async function loadAllEventsFromDb() {
     try {
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+        const { data, error } = await supabase.from("events").select("*");
+        if (error) {
+            console.error("Error loading events from Supabase:", error.message);
+            return [];
+        }
+        return (data || []).map(mapDbEventToApi);
     } catch (err) {
-        console.error(`Error writing JSON to ${filePath}:`, err.message);
+        console.error("loadAllEventsFromDb error:", err.message);
+        return [];
     }
 }
 
-/** -------- USER EMAIL FROM users.json -------- **/
-function getCurrentUserEmail() {
-    const data = readJsonFile(usersFilePath, null);
+async function loadEventsByDateRange(startIso, endIso) {
+    try {
+        const { data, error } = await supabase
+            .from("events")
+            .select("*")
+            .gte("start_time", startIso)
+            .lt("start_time", endIso)
+            .order("start_time", { ascending: true });
 
-    if (Array.isArray(data)) {
-        const userWithEmail = data.find(
-            (u) => u && typeof u.email === "string" && u.email.trim() !== ""
+        if (error) {
+            console.error("Error loading events by date range:", error.message);
+            return [];
+        }
+
+        return (data || []).map(mapDbEventToApi);
+    } catch (err) {
+        console.error("loadEventsByDateRange error:", err.message);
+        return [];
+    }
+}
+
+async function insertEventToDb(event) {
+    try {
+        const dbRow = {
+            name: event.name,
+            start_time: event.startTime,
+            notify: event.notify,
+            notes: event.notes,
+            user_email: event.userEmail,
+            notified_one_day: !!event.notifiedOneDay,
+            notified_one_hour: !!event.notifiedOneHour,
+        };
+
+        const { data, error } = await supabase
+            .from("events")
+            .insert(dbRow)
+            .select("*")
+            .single();
+
+        if (error) {
+            console.error("Error inserting event into Supabase:", error.message);
+            return null;
+        }
+
+        return mapDbEventToApi(data);
+    } catch (err) {
+        console.error("insertEventToDb error:", err.message);
+        return null;
+    }
+}
+
+async function deleteEventById(id) {
+    try {
+        const { data, error } = await supabase
+            .from("events")
+            .delete()
+            .eq("id", id)
+            .select("id");
+
+        if (error) {
+            console.error("Error deleting event from Supabase:", error.message);
+            return { success: false, notFound: false };
+        }
+
+        if (!data || data.length === 0) {
+            return { success: false, notFound: true };
+        }
+
+        return { success: true, notFound: false };
+    } catch (err) {
+        console.error("deleteEventById error:", err.message);
+        return { success: false, notFound: false };
+    }
+}
+
+async function updateNotificationFlags(ev) {
+    try {
+        const payload = {
+            notified_one_day: !!ev.notifiedOneDay,
+            notified_one_hour: !!ev.notifiedOneHour,
+        };
+
+        const { error } = await supabase
+            .from("events")
+            .update(payload)
+            .eq("id", ev.id);
+
+        if (error) {
+            console.error(
+                `Error updating notification flags for event ${ev.id}:`,
+                error.message
+            );
+        }
+    } catch (err) {
+        console.error(
+            `updateNotificationFlags error for event ${ev.id}:`,
+            err.message
         );
-        if (userWithEmail) {
-            return userWithEmail.email;
-        }
     }
-
-    if (data && typeof data.email === "string" && data.email.trim() !== "") {
-        return data.email;
-    }
-
-    return null;
-}
-
-/** -------- EVENT STORAGE (events.json) -------- **/
-function loadEvents() {
-    return readJsonFile(eventsFilePath, []);
-}
-
-function saveEvents(events) {
-    writeJsonFile(eventsFilePath, events);
 }
 
 /** -------- EMAIL TRANSPORT -------- **/
@@ -97,13 +221,14 @@ async function sendNotificationEmail(event, whenLabel) {
     await transporter.sendMail(mailOptions);
 }
 
-/** -------- CRON JOB (runs every minute) -------- **/
+/** -------- CRON JOB -------- **/
 cron.schedule("* * * * *", async () => {
     const now = new Date();
-    let events = loadEvents();
-    let changed = false;
 
     try {
+        const events = await loadAllEventsFromDb();
+        const toUpdate = [];
+
         for (const ev of events) {
             if (!ev.notify) continue;
 
@@ -111,31 +236,30 @@ cron.schedule("* * * * *", async () => {
             const diffMs = start.getTime() - now.getTime();
             const diffMin = diffMs / (1000 * 60);
 
-            // 1 day before
             if (!ev.notifiedOneDay && diffMin <= 1441 && diffMin >= 1439) {
                 try {
                     await sendNotificationEmail(ev, "1 day before");
                     ev.notifiedOneDay = true;
-                    changed = true;
+                    toUpdate.push(ev);
                 } catch (e) {
                     console.error("Error sending 1-day email:", e.message);
                 }
             }
 
-            // 1 hour before
             if (!ev.notifiedOneHour && diffMin <= 61 && diffMin >= 59) {
                 try {
                     await sendNotificationEmail(ev, "1 hour before");
                     ev.notifiedOneHour = true;
-                    changed = true;
+                    toUpdate.push(ev);
                 } catch (e) {
                     console.error("Error sending 1-hour email:", e.message);
                 }
             }
         }
 
-        if (changed) {
-            saveEvents(events);
+        // Persist any flag changes
+        for (const ev of toUpdate) {
+            await updateNotificationFlags(ev);
         }
     } catch (err) {
         console.error("Scheduler CRON error:", err.message);
@@ -144,7 +268,6 @@ cron.schedule("* * * * *", async () => {
 
 /** -------- ROUTES -------- **/
 
-// POST /api/events
 router.post("/events", async (req, res) => {
     try {
         if (!req.body) {
@@ -153,15 +276,14 @@ router.post("/events", async (req, res) => {
 
         const { name, date, time, notify, notes } = req.body;
 
-        const userEmail = getCurrentUserEmail();
+        const userEmail = await getCurrentUserEmail();
         if (!userEmail) {
             return res.status(500).json({
                 error:
-                    "Could not determine user email from server-side users.json file.",
+                    "Could not determine user email from Supabase users table.",
             });
         }
 
-        // Required fields
         if (!name || !date || !time || typeof notify === "undefined") {
             return res.status(400).json({ error: "Missing required fields." });
         }
@@ -178,7 +300,6 @@ router.post("/events", async (req, res) => {
                 .json({ error: "Additional notes must be 2000 characters or less." });
         }
 
-        // Parse date: MM/DD/YYYY
         const [monthStr, dayStr, yearStr] = date.split("/");
         const month = Number(monthStr) - 1;
         const day = Number(dayStr);
@@ -192,7 +313,6 @@ router.post("/events", async (req, res) => {
             return res.status(400).json({ error: "Invalid date format." });
         }
 
-        // Parse time
         let hours = 0;
         let minutes = 0;
         let timeString = time.trim().toUpperCase();
@@ -223,14 +343,12 @@ router.post("/events", async (req, res) => {
             return res.status(400).json({ error: "Invalid time format." });
         }
 
-        const startTime = new Date(year, month, day, hours, minutes, 0, 0);
+        const startTimeDate = new Date(year, month, day, hours, minutes, 0, 0);
+        const startTimeIso = startTimeDate.toISOString();
 
-        // Load, append, save
-        const events = loadEvents();
         const newEvent = {
-            id: Date.now(), // simple unique id
             name,
-            startTime: startTime.toISOString(),
+            startTime: startTimeIso,
             notify: !!notify,
             notes: notes || "",
             userEmail,
@@ -238,18 +356,19 @@ router.post("/events", async (req, res) => {
             notifiedOneHour: false,
         };
 
-        events.push(newEvent);
-        saveEvents(events);
+        const saved = await insertEventToDb(newEvent);
+        if (!saved) {
+            return res.status(500).json({ error: "Failed to save event." });
+        }
 
-        res.status(201).json(newEvent);
+        return res.status(201).json(saved);
     } catch (err) {
         console.error("POST /api/events error:", err);
-        res.status(500).json({ error: "Internal server error." });
+        return res.status(500).json({ error: "Internal server error." });
     }
 });
 
-// GET /api/events?month=YYYY-MM
-router.get("/events", (req, res) => {
+router.get("/events", async (req, res) => {
     try {
         const monthParam = req.query.month;
         if (!monthParam) {
@@ -272,23 +391,19 @@ router.get("/events", (req, res) => {
         const monthStart = new Date(year, monthIndex, 1, 0, 0, 0, 0);
         const monthEnd = new Date(year, monthIndex + 1, 1, 0, 0, 0, 0);
 
-        const events = loadEvents().filter((ev) => {
-            const d = new Date(ev.startTime);
-            return d >= monthStart && d < monthEnd;
-        });
+        const events = await loadEventsByDateRange(
+            monthStart.toISOString(),
+            monthEnd.toISOString()
+        );
 
-        // Sort by startTime
-        events.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-
-        res.json(events);
+        return res.json(events);
     } catch (err) {
         console.error("GET /api/events error:", err);
-        res.status(500).json({ error: "Internal server error." });
+        return res.status(500).json({ error: "Internal server error." });
     }
 });
 
-// DELETE /api/events/:id
-router.delete("/events/:id", (req, res) => {
+router.delete("/events/:id", async (req, res) => {
     try {
         const idParam = req.params.id;
         if (!idParam) {
@@ -300,16 +415,15 @@ router.delete("/events/:id", (req, res) => {
             return res.status(400).json({ error: "Invalid event id." });
         }
 
-        const events = loadEvents();
-        const beforeCount = events.length;
-        const remaining = events.filter((ev) => ev.id !== id);
-
-        if (remaining.length === beforeCount) {
-            // nothing removed
+        const result = await deleteEventById(id);
+        if (result.notFound) {
             return res.status(404).json({ error: "Event not found." });
         }
 
-        saveEvents(remaining);
+        if (!result.success) {
+            return res.status(500).json({ error: "Failed to delete event." });
+        }
+
         return res.status(200).json({ success: true });
     } catch (err) {
         console.error("DELETE /api/events/:id error:", err);

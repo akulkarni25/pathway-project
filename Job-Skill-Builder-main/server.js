@@ -359,30 +359,6 @@ app.post("/logout", (req, res) => {
 
 // ---------- FILE UPLOAD ENDPOINTS (Dashboard) ----------
 
-// Resume upload from dashboard "Resume" tab
-app.post("/upload-resume", requireAuth, upload.single("resume"), (req, res) => {
-    try {
-        if (!req.file) {
-            return res.json({
-                success: false,
-                message: "No file uploaded.",
-            });
-        }
-
-        return res.json({
-            success: true,
-            message: "Resume uploaded.",
-            filename: req.file.originalname,
-        });
-    } catch (err) {
-        console.error("/upload-resume error:", err);
-        return res.json({
-            success: false,
-            message: "Server error. Try again.",
-        });
-    }
-});
-
 app.get("/resume_reformatter", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "resume_reformatter.html"));
 });
@@ -497,6 +473,9 @@ app.get("/api/networking-events", async (req, res) => {
 
 // ---------- START SERVER ----------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`✅ Server running on http://localhost:${PORT}`);
+    });
+}
+module.exports = app;

@@ -16,7 +16,6 @@ if (typeof pdfParse !== "function" && pdfParse && typeof pdfParse.default === "f
   pdfParse = pdfParse.default;
 }
 
-// ----- Supabase client -----
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
@@ -34,7 +33,7 @@ const openai =
     ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     : null;
 
-// ----- Auth middleware (same logic as in server.js) -----
+// ----- Auth middleware -----
 function requireAuth(req, res, next) {
   if (!req.session || !req.session.user) {
     return res.status(401).json({
@@ -62,7 +61,6 @@ async function extractTextFromResumeFile(filePath, originalName) {
     return result.value || "";
   }
 
-  // Generic fallback (txt, unknown)
   return buffer.toString("utf8");
 }
 
@@ -133,7 +131,7 @@ router.post("/resume/reformatter", requireAuth, async (req, res) => {
 
     const userId = req.session.user.id;
 
-    // 1) Fetch resume_url for this user
+    // 1) Fetch resume_url for the user
     const { data: userRow, error: fetchErr } = await supabase
       .from("users")
       .select("id, resume_url, fullname, occupation")
@@ -156,10 +154,10 @@ router.post("/resume/reformatter", requireAuth, async (req, res) => {
       });
     }
 
-    const resumeUrl = userRow.resume_url; // e.g. "/uploads/xyz.pdf"
+    const resumeUrl = userRow.resume_url;
     const localPath = path.join(
       __dirname,
-      resumeUrl.replace(/^\//, "") // strip leading slash
+      resumeUrl.replace(/^\//, "")
     );
 
     if (!fs.existsSync(localPath)) {
@@ -209,8 +207,6 @@ router.post("/resume/reformatter", requireAuth, async (req, res) => {
       completion.choices?.[0]?.message?.content ||
       "Sorry, I couldn't generate a revised resume.";
 
-    // 4) Build a .docx file from the tailored resume
-    //    We'll treat blank lines as paragraph breaks, and lines ending with ":" as headings.
     const lines = tailoredResume.split(/\r?\n/);
     const paragraphs = [];
     let currentLines = [];
@@ -223,7 +219,6 @@ router.post("/resume/reformatter", requireAuth, async (req, res) => {
         return;
       }
 
-      // Heading heuristic: single short line ending in ":" or fully uppercase
       const isLikelyHeading =
         currentLines.length === 1 &&
         (/:\s*$/.test(text) || text === text.toUpperCase());
@@ -235,7 +230,7 @@ router.post("/resume/reformatter", requireAuth, async (req, res) => {
               new TextRun({
                 text: text.replace(/:\s*$/, ""),
                 bold: true,
-                size: 28, // ~14pt
+                size: 28,
               }),
             ],
             spacing: { after: 200 },
@@ -247,7 +242,7 @@ router.post("/resume/reformatter", requireAuth, async (req, res) => {
             children: [
               new TextRun({
                 text,
-                size: 22, // ~11pt
+                size: 22,
               }),
             ],
             spacing: { after: 120 },
